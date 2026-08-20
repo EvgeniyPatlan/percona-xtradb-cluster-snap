@@ -1,0 +1,47 @@
+summary: Percona Server snap smoke tests
+
+prepare: |
+  snap install "${SPREAD_PATH}/$(basename "${CRAFT_ARTIFACT}")" --dangerous --jailmode
+  until [ -S /var/snap/percona-xtradb-cluster/current/run/mysqld.sock ]; do
+    echo "Waiting for mysqld.sock"
+    sleep 1
+  done
+
+execute: |
+  echo "Percona Server snap smoke tests"
+
+  SNAP_VERSION=$(awk -F\' '/^version/{print $2}' "${SPREAD_PATH}"/snap/snapcraft.yaml)
+  percona-xtradb-cluster.mysql --user=root --execute="select @@version;" -E | \
+    grep "^@@version: ${SNAP_VERSION:-error}"
+
+  echo "Ensure all tools are present"
+  for tool in mysqldump mysqlimport mysqlshow mysqlslap mysqlcheck; do
+    echo "Test ${tool}"
+    percona-xtradb-cluster.${tool} --help &>/dev/null
+  done
+
+  echo "Ensure telemetry is not active"
+  # variable must be absent (component not loaded) or ON (disabled); never OFF
+  if percona-xtradb-cluster.mysql --user=root \
+      --execute="SHOW VARIABLES LIKE 'percona_telemetry_disable';" | grep -iq OFF; then
+    echo "Telemetry is enabled but must be disabled"
+    exit 1
+  fi
+  test ! -e /snap/percona-xtradb-cluster/current/usr/bin/percona-telemetry-agent
+
+  echo "Ensure Galera is ready"
+  percona-xtradb-cluster.mysql -u root --execute="SHOW STATUS LIKE 'wsrep_ready';" | grep -q ON
+
+  echo "Ensure SST plumbing is shipped"
+  test -x /snap/percona-xtradb-cluster/current/usr/bin/pxc_extra/pxb-8.4/bin/xtrabackup
+  test -x /snap/percona-xtradb-cluster/current/usr/bin/wsrep_sst_xtrabackup-v2
+
+  echo "Test TCP connection (exercises server-side NSS resolution)"
+  percona-xtradb-cluster.mysql -u root -h 127.0.0.1 --protocol=TCP --execute="SELECT 1;"
+
+  echo "Test mysqladmin"
+  # mysqladmin returns 1 when called with `--help`, 127 if not found
+  percona-xtradb-cluster.mysqladmin --help &>/dev/null || [ $? -eq 1 ] && exit 0 || exit 127
+
+restore: |
+  snap remove percona-xtradb-cluster --purge --terminate

@@ -1,0 +1,35 @@
+summary: Percona Server mysqld service tests
+
+prepare: |
+  snap install "${SPREAD_PATH}/$(basename "${CRAFT_ARTIFACT}")" --dangerous --jailmode
+  until [ -S /var/snap/percona-xtradb-cluster/current/run/mysqld.sock ]; do
+    echo "Waiting for mysqld.sock"
+    sleep 1
+  done
+
+execute: |
+  echo "Testing service control"
+  CMD="percona-xtradb-cluster.mysql -u root"
+
+  echo "Stopping percona-xtradb-cluster.mysqld"
+  snap stop percona-xtradb-cluster.mysqld
+  until [ ! -e /var/snap/percona-xtradb-cluster/current/run/mysqld.sock ]; do
+    echo "Waiting for mysqld.sock to be removed"
+    sleep 1
+  done
+
+  ${CMD} -e "SELECT 1;" &>/dev/null || :
+  snap services percona-xtradb-cluster.mysqld | grep -q inactive
+
+  echo "Starting percona-xtradb-cluster.mysqld"
+  snap start percona-xtradb-cluster.mysqld
+  until [ -S /var/snap/percona-xtradb-cluster/current/run/mysqld.sock ]; do
+    echo "Waiting for mysqld.sock to be created"
+    sleep 1
+  done
+
+  ${CMD} -e "SELECT 1;" &>/dev/null
+  snap services percona-xtradb-cluster.mysqld | grep -q " active"
+
+restore: |
+  snap remove percona-xtradb-cluster --purge --terminate

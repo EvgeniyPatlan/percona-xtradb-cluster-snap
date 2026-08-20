@@ -1,0 +1,23 @@
+project: percona-xtradb-cluster-snap
+
+path: /home/ubuntu/percona-xtradb-cluster-snap
+
+environment:
+  CRAFT_ARTIFACT: $(HOST:printenv CRAFT_ARTIFACT)
+
+backends:
+  lxd:
+    type: lxd
+    systems:
+      - ubuntu-24.04
+
+suites:
+  spread/tests/:
+    summary: General integration tests
+    prepare: |
+      apt remove --purge --yes mysql* percona* || true
+
+exclude:
+  - .git
+
+kill-timeout: 1h
