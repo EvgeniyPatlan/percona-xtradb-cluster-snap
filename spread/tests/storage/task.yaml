@@ -1,0 +1,52 @@
+summary: Percona Server storage tests
+
+prepare: |
+  snap install "${SPREAD_PATH}/$(basename "${CRAFT_ARTIFACT}")" --dangerous --jailmode
+  until [ -S /var/snap/percona-xtradb-cluster/current/run/mysqld.sock ]; do
+    echo "Waiting for mysqld.sock"
+    sleep 1
+  done
+
+execute: |
+  echo "Creating test data..."
+
+  CMD="percona-xtradb-cluster.mysql -u root"
+
+  ${CMD} --execute="
+    CREATE DATABASE test_db;
+    CREATE TABLE test_db.test (id SERIAL PRIMARY KEY, name TEXT);
+    INSERT INTO test_db.test (name) VALUES ('test1');
+    SELECT * FROM test_db.test;
+  "
+
+  echo "Create a storage to keep your data/logs..."
+  install --directory --owner snap_daemon --group root /srv/mysqldata/data
+  install --directory --owner snap_daemon --group root /srv/mysqldata/logs
+
+  echo "Stop Percona Server to move data..."
+  snap stop percona-xtradb-cluster.mysqld
+
+  echo "Move current data/logs..."
+  cp -a /var/snap/percona-xtradb-cluster/common/data/* /srv/mysqldata/data
+  cp -a /var/snap/percona-xtradb-cluster/current/log/* /srv/mysqldata/logs
+
+  echo "Mount data/logs storage inside SNAP..."
+  mount --bind /srv/mysqldata/data /var/snap/percona-xtradb-cluster/common/data
+  mount --bind /srv/mysqldata/logs /var/snap/percona-xtradb-cluster/current/log
+
+  echo "Start Percona Server..."
+  snap start percona-xtradb-cluster.mysqld
+  sleep 10
+
+  echo "Checking test data in new location..."
+  ${CMD} --execute="SELECT * FROM test_db.test;"
+
+  echo "Cleaning mounts to purge SNAP on spread restore"
+  snap stop percona-xtradb-cluster.mysqld
+  umount /var/snap/percona-xtradb-cluster/common/data
+  umount /var/snap/percona-xtradb-cluster/current/log
+
+  echo "Storage test completed."
+
+restore: |
+  snap remove percona-xtradb-cluster --purge --terminate
