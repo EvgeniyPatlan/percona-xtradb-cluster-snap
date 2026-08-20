@@ -1,0 +1,189 @@
+name: percona-xtradb-cluster
+base: core26
+version: '8.4.10-10'
+summary: Percona XtraDB Cluster (Galera) in a snap.
+description: |
+  Percona XtraDB Cluster is a high-availability MySQL clustering solution
+  combining Percona Server for MySQL with the Galera synchronous
+  multi-master replication library.
+
+  On install the snap initializes the data directory and starts a
+  single-node cluster (wsrep enabled, empty gcomm:// bootstrap). To join
+  an existing cluster, set wsrep_cluster_address in
+  /var/snap/percona-xtradb-cluster/current/etc/mysqld.cnf and restart the
+  mysqld service. Cluster traffic encryption is enabled by default: nodes
+  must share the SSL certificates auto-generated in the first node's data
+  directory. State Snapshot Transfer uses the bundled Percona XtraBackup
+  (xtrabackup-v2).
+
+  The Galera Arbitrator is included as a disabled service; configure and
+  start it with:
+    snap set percona-xtradb-cluster garbd.address=gcomm://<ip>:4567 garbd.group=<cluster>
+    snap start percona-xtradb-cluster.garbd
+title: Percona XtraDB Cluster
+contact: https://github.com/EvgeniyPatlan/percona-xtradb-cluster-snap/issues
+issues: https://github.com/EvgeniyPatlan/percona-xtradb-cluster-snap/issues
+source-code: https://github.com/EvgeniyPatlan/percona-xtradb-cluster-snap
+website: https://www.percona.com/mysql/software/percona-xtradb-cluster
+
+grade: stable
+confinement: strict
+license: Apache-2.0
+platforms:
+  amd64:
+  arm64:
+
+system-usernames:
+  snap_daemon: shared
+
+package-repositories:
+  - type: apt
+    url: https://repo.percona.com/pxc-84-lts/apt
+    suites: [resolute]
+    components: [main]
+    key-id: 4D1BB29D63D98E422B2113B19334A25F8507EFA5
+  # Needed only because percona-xtradb-cluster-server depends on
+  # percona-telemetry-agent; the agent is pruned below.
+  - type: apt
+    url: https://repo.percona.com/telemetry/apt
+    suites: [resolute]
+    components: [main]
+    key-id: 4D1BB29D63D98E422B2113B19334A25F8507EFA5
+
+hooks:
+  install:
+    plugs:
+      - network
+      - network-bind
+  configure: {}
+
+slots:
+  mysql-sockets:
+    interface: content
+    content: socket-directory
+    write:
+      - $SNAP_DATA/run
+
+apps:
+  mysqld:
+    command: bin/mysqld.sh
+    daemon: simple
+    plugs:
+      - network
+      - network-bind
+  mysql:
+    command: usr/bin/mysql -S $SNAP_DATA/run/mysqld.sock
+    plugs:
+      - network
+  mysqladmin:
+    command: usr/bin/mysqladmin -S $SNAP_DATA/run/mysqld.sock
+    plugs:
+      - network
+  mysqlcheck:
+    command: usr/bin/mysqlcheck -S $SNAP_DATA/run/mysqld.sock
+    plugs:
+      - network
+  mysqldump:
+    command: usr/bin/mysqldump -S $SNAP_DATA/run/mysqld.sock
+    plugs:
+      - network
+  mysqlimport:
+    command: usr/bin/mysqlimport -S $SNAP_DATA/run/mysqld.sock
+    plugs:
+      - network
+  mysqlshow:
+    command: usr/bin/mysqlshow -S $SNAP_DATA/run/mysqld.sock
+    plugs:
+      - network
+  mysqlslap:
+    command: usr/bin/mysqlslap -S $SNAP_DATA/run/mysqld.sock
+    plugs:
+      - network
+  clustercheck:
+    command: usr/bin/clustercheck
+    plugs:
+      - network
+  garbd:
+    command: bin/garbd.sh
+    daemon: simple
+    install-mode: disable
+    plugs:
+      - network
+      - network-bind
+
+parts:
+  packages-deb:
+    plugin: nil
+    stage-packages:
+      - percona-xtradb-cluster-server=1:8.4.10-10-1.resolute
+      - percona-xtradb-cluster-client=1:8.4.10-10-1.resolute
+      - percona-xtradb-cluster-garbd=1:8.4.10-10-1.resolute
+      - util-linux
+    prime:
+      # Percona telemetry agent (pulled in as a hard dependency; not shipped)
+      - -usr/bin/percona-telemetry-agent
+      - -etc/default
+      - -etc/logrotate.d
+      - -usr/sbin/logrotate
+      - -lib/systemd
+      - -usr/lib/systemd
+      # Host-only integration files that make no sense inside a snap
+      - -etc/init.d
+      - -etc/apparmor.d
+      - -etc/cron.daily
+      - -etc/logcheck
+      - -usr/bin/garb-systemd
+      - -usr/bin/mysql-systemd
+      # Test-only tools
+      - -usr/bin/mysqltest
+      - -usr/bin/mysql_client_test
+      - -usr/bin/mysql_keyring_encryption_test
+      - -usr/bin/pyclustercheck
+      # Debug plugins
+      - -usr/lib/mysql/plugin/debug
+      # Mute lint: unused libraries (carried from the percona-server-mysql
+      # sibling; harmless if absent, extended by real build lint output)
+      - -usr/lib/*/libBrokenLocale.so*
+      - -usr/lib/*/libanl.so*
+      - -usr/lib/*/libbrotlienc.so*
+      - -usr/lib/*/libc_malloc_debug.so*
+      - -usr/lib/*/libdl.so*
+      - -usr/lib/*/libdrop_ambient.so*
+      - -usr/lib/*/libmemusage.so*
+      - -usr/lib/*/libmvec.so*
+      - -usr/lib/*/libnsl.so*
+      - -usr/lib/*/libnss_compat.so*
+      - -usr/lib/*/libnss_dns.so*
+      - -usr/lib/*/libnss_files.so*
+      - -usr/lib/*/libnss_hesiod.so*
+      - -usr/lib/*/libpamc.so*
+      - -usr/lib/*/libpcprofile.so*
+      - -usr/lib/*/libpopt.so*
+      - -usr/lib/*/libpthread.so*
+      - -usr/lib/*/librt.so*
+      - -usr/lib/*/libthread_db.so*
+      - -usr/lib/*/libtic.so*
+      - -usr/lib/*/libutil.so*
+    organize:
+      usr/share/doc/percona-xtradb-cluster-server/copyright: licenses/COPYRIGHT-percona-xtradb-cluster-server
+      usr/share/doc/percona-xtradb-cluster-client/copyright: licenses/COPYRIGHT-percona-xtradb-cluster-client
+      usr/share/doc/percona-xtradb-cluster-common/copyright: licenses/COPYRIGHT-percona-xtradb-cluster-common
+      usr/share/doc/percona-xtradb-cluster-garbd/copyright: licenses/COPYRIGHT-percona-xtradb-cluster-garbd
+      usr/share/doc/qpress/copyright: licenses/COPYRIGHT-qpress
+      usr/share/doc/util-linux/copyright: licenses/COPYRIGHT-util-linux
+  snap-license:
+    plugin: dump
+    source: .
+    source-type: local
+    stage:
+      - licenses/LICENSE-snap
+    organize:
+      LICENSE: licenses/LICENSE-snap
+  snap-scripts:
+    plugin: dump
+    source: snap/local
+    source-type: local
+    override-prime: |
+      craftctl default
+      sed -i 's/_NAME_/$SNAPCRAFT_PROJECT_NAME/g' bin/*.sh
+      sed -i 's/_NAME_/$SNAPCRAFT_PROJECT_NAME/g' etc/*.cnf
