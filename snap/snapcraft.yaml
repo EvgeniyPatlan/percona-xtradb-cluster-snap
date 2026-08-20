@@ -46,6 +46,9 @@ package-repositories:
   - type: apt
     url: https://repo.percona.com/pxc-97-lts/apt
     suites: [resolute]
+    # TODO(9.7 GA): build currently blocked upstream — the pre-GA testing deb
+    # declares Depends: iproute (needs iproute2 on resolute). When unblocked:
+    # re-verify the smoke suite's pxc_extra/pxb-8.4 path and the prime lib list.
     components: [testing]
     key-id: 4D1BB29D63D98E422B2113B19334A25F8507EFA5
   # Needed only because percona-xtradb-cluster-server depends on
