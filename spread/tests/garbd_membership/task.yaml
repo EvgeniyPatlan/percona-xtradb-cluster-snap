@@ -19,7 +19,7 @@ execute: |
   done
 
   echo "Starting garbd against the local node"
-  snap set percona-xtradb-cluster garbd.address=gcomm://127.0.0.1:4567 garbd.group=pxc-cluster
+  snap set percona-xtradb-cluster garbd.address=gcomm://127.0.0.1:4567 garbd.group=pxc-cluster garbd.options="gmcast.listen_addr=tcp://0.0.0.0:4568"
   snap start percona-xtradb-cluster.garbd
 
   echo "Waiting for the arbitrator to join"

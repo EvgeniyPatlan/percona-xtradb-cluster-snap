@@ -31,5 +31,8 @@ execute: |
   ${CMD} -e "SELECT v FROM galera_db.t WHERE id = 1;" | grep -q bootstrap_ok
   ${CMD} -e "DROP DATABASE galera_db;"
 
+  echo "Checking clustercheck health probe"
+  percona-xtradb-cluster.clustercheck | grep -q "200 OK"
+
 restore: |
   snap remove percona-xtradb-cluster --purge --terminate

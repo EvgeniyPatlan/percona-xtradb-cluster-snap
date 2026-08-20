@@ -1,4 +1,4 @@
-summary: Percona Server storage tests
+summary: Percona XtraDB Cluster storage tests
 
 prepare: |
   snap install "${SPREAD_PATH}/$(basename "${CRAFT_ARTIFACT}")" --dangerous --jailmode

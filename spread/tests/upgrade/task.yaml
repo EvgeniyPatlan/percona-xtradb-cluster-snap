@@ -1,4 +1,4 @@
-summary: Percona Server upgrade tests
+summary: Percona XtraDB Cluster upgrade tests
 
 # TODO(release): remove `manual` once percona-xtradb-cluster is published to 8.4/edge
 manual: true
