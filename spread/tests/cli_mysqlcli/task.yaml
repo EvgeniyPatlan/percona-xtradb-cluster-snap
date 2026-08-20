@@ -1,4 +1,4 @@
-summary: Percona Server mysql CLI tests
+summary: Percona XtraDB Cluster mysql CLI tests
 
 prepare: |
   snap install "${SPREAD_PATH}/$(basename "${CRAFT_ARTIFACT}")" --dangerous --jailmode

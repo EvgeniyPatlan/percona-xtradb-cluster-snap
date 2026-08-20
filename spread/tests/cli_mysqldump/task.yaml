@@ -1,4 +1,4 @@
-summary: Percona Server mysqldump CLI tests
+summary: Percona XtraDB Cluster mysqldump CLI tests
 
 prepare: |
   snap install "${SPREAD_PATH}/$(basename "${CRAFT_ARTIFACT}")" --dangerous --jailmode
@@ -11,7 +11,7 @@ execute: |
   echo "Testing mysqldump"
 
   CMD="percona-xtradb-cluster.mysql -u root"
-  CMD_DUMP="percona-xtradb-cluster.mysqldump -u root"
+  CMD_DUMP="percona-xtradb-cluster.mysqldump -u root --single-transaction"
 
   echo "Creating test db"
   ${CMD} -e "CREATE DATABASE test_db;"
@@ -19,7 +19,7 @@ execute: |
   ${CMD} -e "INSERT INTO test_db.test_table (id, name) VALUES (1, 'test_name');"
 
   echo "Dump test db"
-  ${CMD_DUMP} --databases test_db | cat >test_db.sql
+  ${CMD_DUMP} --databases test_db >test_db.sql
 
   echo "Drop test db"
   ${CMD} -e "DROP DATABASE test_db;"

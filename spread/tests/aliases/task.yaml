@@ -1,4 +1,4 @@
-summary: Percona Server snap alias tests
+summary: Percona XtraDB Cluster snap alias tests
 
 prepare: |
   snap install "${SPREAD_PATH}/$(basename "${CRAFT_ARTIFACT}")" --dangerous --jailmode
