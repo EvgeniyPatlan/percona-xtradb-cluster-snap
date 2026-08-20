@@ -1,0 +1,45 @@
+summary: PXC garbd (Galera Arbitrator) membership tests
+
+prepare: |
+  snap install "${SPREAD_PATH}/$(basename "${CRAFT_ARTIFACT}")" --dangerous --jailmode
+  until [ -S /var/snap/percona-xtradb-cluster/current/run/mysqld.sock ]; do
+    echo "Waiting for mysqld.sock"
+    sleep 1
+  done
+
+execute: |
+  CMD="percona-xtradb-cluster.mysql -u root"
+
+  echo "Disabling cluster traffic encryption for loopback arbitrator test"
+  echo "pxc-encrypt-cluster-traffic = OFF" >> /var/snap/percona-xtradb-cluster/current/etc/mysqld.cnf
+  snap restart percona-xtradb-cluster.mysqld
+  until ${CMD} -e "SELECT 1;" &>/dev/null; do
+    echo "Waiting for mysql to be available..."
+    sleep 1
+  done
+
+  echo "Starting garbd against the local node"
+  snap set percona-xtradb-cluster garbd.address=gcomm://127.0.0.1:4567 garbd.group=pxc-cluster
+  snap start percona-xtradb-cluster.garbd
+
+  echo "Waiting for the arbitrator to join"
+  for i in $(seq 30); do
+    if ${CMD} -e "SHOW STATUS LIKE 'wsrep_cluster_size';" | grep -q "wsrep_cluster_size.*2"; then
+      break
+    fi
+    sleep 2
+  done
+  ${CMD} -e "SHOW STATUS LIKE 'wsrep_cluster_size';" | grep -q "wsrep_cluster_size.*2"
+
+  echo "Stopping garbd; cluster shrinks back"
+  snap stop percona-xtradb-cluster.garbd
+  for i in $(seq 30); do
+    if ${CMD} -e "SHOW STATUS LIKE 'wsrep_cluster_size';" | grep -q "wsrep_cluster_size.*1"; then
+      break
+    fi
+    sleep 2
+  done
+  ${CMD} -e "SHOW STATUS LIKE 'wsrep_cluster_size';" | grep -q "wsrep_cluster_size.*1"
+
+restore: |
+  snap remove percona-xtradb-cluster --purge --terminate

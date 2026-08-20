@@ -1,0 +1,35 @@
+summary: Percona Server mysqldump CLI tests
+
+prepare: |
+  snap install "${SPREAD_PATH}/$(basename "${CRAFT_ARTIFACT}")" --dangerous --jailmode
+  until [ -S /var/snap/percona-xtradb-cluster/current/run/mysqld.sock ]; do
+    echo "Waiting for mysqld.sock"
+    sleep 1
+  done
+
+execute: |
+  echo "Testing mysqldump"
+
+  CMD="percona-xtradb-cluster.mysql -u root"
+  CMD_DUMP="percona-xtradb-cluster.mysqldump -u root"
+
+  echo "Creating test db"
+  ${CMD} -e "CREATE DATABASE test_db;"
+  ${CMD} -e "USE test_db; CREATE TABLE test_table (id INT PRIMARY KEY, name VARCHAR(50));"
+  ${CMD} -e "INSERT INTO test_db.test_table (id, name) VALUES (1, 'test_name');"
+
+  echo "Dump test db"
+  ${CMD_DUMP} --databases test_db | cat >test_db.sql
+
+  echo "Drop test db"
+  ${CMD} -e "DROP DATABASE test_db;"
+
+  echo "Restore test db"
+  cat test_db.sql | ${CMD}
+
+  ${CMD} -e "SELECT * FROM test_db.test_table WHERE id = 1;"
+
+  ${CMD} -e "DROP DATABASE test_db;"
+
+restore: |
+  snap remove percona-xtradb-cluster --purge --terminate

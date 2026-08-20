@@ -1,0 +1,18 @@
+summary: Percona Server mysqlcheck CLI tests
+
+prepare: |
+  snap install "${SPREAD_PATH}/$(basename "${CRAFT_ARTIFACT}")" --dangerous --jailmode
+  until [ -S /var/snap/percona-xtradb-cluster/current/run/mysqld.sock ]; do
+    echo "Waiting for mysqld.sock"
+    sleep 1
+  done
+
+execute: |
+  echo "Testing mysqlcheck"
+
+  CMD="percona-xtradb-cluster.mysqlcheck -u root"
+
+  ${CMD} --silent --extended --all-databases
+
+restore: |
+  snap remove percona-xtradb-cluster --purge --terminate
