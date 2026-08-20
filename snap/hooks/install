@@ -6,6 +6,14 @@ init_snap_data() {
     cp $SNAP/etc/mysqld.cnf $SNAP_DATA/etc
     chown -R snap_daemon:root $SNAP_DATA/etc
 
+    # Defaults file for the clustercheck health probe
+    cat <<EOF > $SNAP_DATA/etc/clustercheck.cnf
+[client]
+user   = root
+socket = $SNAP_DATA/run/mysqld.sock
+EOF
+    chown snap_daemon:root $SNAP_DATA/etc/clustercheck.cnf
+
     # Logs
     mkdir $SNAP_DATA/log
     touch $SNAP_DATA/log/error.log

@@ -64,6 +64,7 @@ max_binlog_size              = 100M
 # (snap restart _NAME_.mysqld). Note: cluster traffic encryption is ON by
 # default; every node must share the SSL certificates auto-generated in the
 # first node's data directory (/var/snap/_NAME_/common/data/*.pem).
+# IMPORTANT: a node that should REJOIN an existing cluster must have wsrep_cluster_address set BEFORE it is restarted; otherwise it bootstraps a new single-node cluster.
 # [mysqld]
 # wsrep_cluster_address = gcomm://10.0.0.1:4567,10.0.0.2:4567
 # wsrep_node_address    = <this node's IP>
