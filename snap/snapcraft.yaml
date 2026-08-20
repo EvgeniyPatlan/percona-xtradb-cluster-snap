@@ -1,6 +1,6 @@
 name: percona-xtradb-cluster
 base: core26
-version: '8.4.10-10'
+version: '9.7.1-1'
 summary: Percona XtraDB Cluster (Galera) in a snap.
 description: |
   Percona XtraDB Cluster is a high-availability MySQL clustering solution
@@ -20,6 +20,8 @@ description: |
   start it with:
     snap set percona-xtradb-cluster garbd.address=gcomm://<ip>:4567 garbd.group=<cluster>
     snap start percona-xtradb-cluster.garbd
+
+  NOTE: the 9.7 track is built from Percona's pre-GA testing repository.
 title: Percona XtraDB Cluster
 contact: https://github.com/EvgeniyPatlan/percona-xtradb-cluster-snap/issues
 issues: https://github.com/EvgeniyPatlan/percona-xtradb-cluster-snap/issues
@@ -38,9 +40,9 @@ system-usernames:
 
 package-repositories:
   - type: apt
-    url: https://repo.percona.com/pxc-84-lts/apt
+    url: https://repo.percona.com/pxc-97-lts/apt
     suites: [resolute]
-    components: [main]
+    components: [testing]
     key-id: 4D1BB29D63D98E422B2113B19334A25F8507EFA5
   # Needed only because percona-xtradb-cluster-server depends on
   # percona-telemetry-agent; the agent is pruned below.
@@ -115,9 +117,9 @@ parts:
   packages-deb:
     plugin: nil
     stage-packages:
-      - percona-xtradb-cluster-server=1:8.4.10-10-1.resolute
-      - percona-xtradb-cluster-client=1:8.4.10-10-1.resolute
-      - percona-xtradb-cluster-garbd=1:8.4.10-10-1.resolute
+      - percona-xtradb-cluster-server=1:9.7.1-1-1.resolute
+      - percona-xtradb-cluster-client=1:9.7.1-1-1.resolute
+      - percona-xtradb-cluster-garbd=1:9.7.1-1-1.resolute
       - util-linux
     prime:
       # Percona telemetry agent (pulled in as a hard dependency; not shipped)

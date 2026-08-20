@@ -1,10 +1,10 @@
 summary: Percona Server upgrade tests
 
-# TODO(release): remove `manual` once percona-xtradb-cluster is published to 8.4/edge
+# TODO(release): remove `manual` once percona-xtradb-cluster is published to 9.7/edge
 manual: true
 
 prepare: |
-  snap install percona-xtradb-cluster --channel 8.4/edge
+  snap install percona-xtradb-cluster --channel 9.7/edge
   until [ -S /var/snap/percona-xtradb-cluster/current/run/mysqld.sock ]; do
     echo "Waiting for mysqld.sock"
     sleep 1
