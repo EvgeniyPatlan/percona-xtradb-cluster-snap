@@ -2,3 +2,5 @@
 *pycache*
 .craft-spread*/
 .spread*
+.tox/
+.superpowers/

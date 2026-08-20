@@ -20,6 +20,10 @@ description: |
   start it with:
     snap set percona-xtradb-cluster garbd.address=gcomm://<ip>:4567 garbd.group=<cluster>
     snap start percona-xtradb-cluster.garbd
+
+  The clustercheck HTTP health probe (for HAProxy and similar) works
+  out of the box when invoked as root; for unprivileged use create a
+  MySQL user with PROCESS privilege and pass credentials as arguments.
 title: Percona XtraDB Cluster
 contact: https://github.com/EvgeniyPatlan/percona-xtradb-cluster-snap/issues
 issues: https://github.com/EvgeniyPatlan/percona-xtradb-cluster-snap/issues
@@ -68,6 +72,7 @@ apps:
   mysqld:
     command: bin/mysqld.sh
     daemon: simple
+    stop-timeout: 5m
     plugs:
       - network
       - network-bind
@@ -100,7 +105,7 @@ apps:
     plugs:
       - network
   clustercheck:
-    command: usr/bin/clustercheck
+    command: bin/clustercheck.sh
     plugs:
       - network
   garbd:
@@ -139,6 +144,7 @@ parts:
       - -usr/bin/mysql_client_test
       - -usr/bin/mysql_keyring_encryption_test
       - -usr/bin/pyclustercheck
+      - -usr/bin/pxc_extra/*/bin/xtrabackup-debug
       # Debug plugins
       - -usr/lib/mysql/plugin/debug
       # Mute lint: unused libraries (carried from the percona-server-mysql

@@ -6,9 +6,9 @@ set -eo pipefail  # Exit on error
 #   snap set _NAME_ garbd.address=gcomm://<ip>:4567 garbd.group=<cluster-name>
 #   snap set _NAME_ garbd.options="<extra galera options>"   (optional)
 if [ -n "$SNAP" ]; then
-    GARBD_ADDRESS="$(snapctl get garbd.address)"
-    GARBD_GROUP="$(snapctl get garbd.group)"
-    GARBD_OPTIONS="$(snapctl get garbd.options)"
+    GARBD_ADDRESS="$(snapctl get garbd.address 2>/dev/null || true)"
+    GARBD_GROUP="$(snapctl get garbd.group 2>/dev/null || true)"
+    GARBD_OPTIONS="$(snapctl get garbd.options 2>/dev/null || true)"
 fi
 
 if [ -z "${GARBD_ADDRESS}" ] || [ -z "${GARBD_GROUP}" ]; then
