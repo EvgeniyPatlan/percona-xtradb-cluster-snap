@@ -164,6 +164,13 @@ parts:
       - -usr/lib/*/libthread_db.so*
       - -usr/lib/*/libtic.so*
       - -usr/lib/*/libutil.so*
+      # Unused-library lint hits from the real PXC build (ncurses form/menu/
+      # panel widgets and libcap2-bin's libpsx; nothing in the snap links
+      # against them).
+      - -usr/lib/*/libformw.so*
+      - -usr/lib/*/libmenuw.so*
+      - -usr/lib/*/libpanelw.so*
+      - -usr/lib/*/libpsx.so*
     organize:
       usr/share/doc/percona-xtradb-cluster-server/copyright: licenses/COPYRIGHT-percona-xtradb-cluster-server
       usr/share/doc/percona-xtradb-cluster-client/copyright: licenses/COPYRIGHT-percona-xtradb-cluster-client
