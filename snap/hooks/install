@@ -4,15 +4,22 @@ init_snap_data() {
     # Configuration
     mkdir $SNAP_DATA/etc
     cp $SNAP/etc/mysqld.cnf $SNAP_DATA/etc
-    chown -R snap_daemon:root $SNAP_DATA/etc
 
-    # Defaults file for the clustercheck health probe
+    # Defaults file for the clustercheck health probe. Written BEFORE the
+    # chown -R below (not after): under strict/jailmode confinement, once a
+    # directory has been handed off via chown, root can no longer create a
+    # new file inside it (CI-proven: "line 10: .../clustercheck.cnf:
+    # Permission denied" then "chown: cannot dereference ...: No such file
+    # or directory" when this heredoc ran after the chown -R handoff).
+    # Populate every file in $SNAP_DATA/etc first, then hand the whole tree
+    # off with a single chown -R.
     cat <<EOF > $SNAP_DATA/etc/clustercheck.cnf
 [client]
 user   = root
 socket = $SNAP_DATA/run/mysqld.sock
 EOF
-    chown snap_daemon:root $SNAP_DATA/etc/clustercheck.cnf
+
+    chown -R snap_daemon:root $SNAP_DATA/etc
 
     # Logs
     mkdir $SNAP_DATA/log
@@ -30,13 +37,22 @@ EOF
 init_snap_common() {
     # Create directory for storing data and set permissions.
     #
-    # Under strict/jailmode confinement an install-hook path tolerates
-    # exactly ONE post-creation mutating op (chown OR chmod); a second one
-    # on the same path is denied (see percona-valkey-snap and
-    # percona-server-mysql-snap install hooks for the same fix). Fold the
-    # "remove group/other access" mode into mkdir -m so chown stays the
-    # only post-creation touch on this path.
-    mkdir -m 0700 $SNAP_COMMON/data
+    # NOTE: this path is touched twice (chown here, chmod below) which
+    # looks like the same "one post-creation mutating op per path" issue
+    # fixed above for clustercheck.cnf (and elsewhere in sibling snaps by
+    # folding the mode into `mkdir -m`). That fold was tried here first and
+    # is a CI-proven regression for this specific path: with the mode set
+    # via `mkdir -m 0700` (chmod dropped), `mysqld --initialize` no longer
+    # produced mysql.ibd on any of 13/13 spread tasks, on both amd64 and
+    # arm64 (mysqld's own diagnostics go to $SNAP_DATA/log/error.log, not
+    # captured hook output, so the exact mechanism isn't visible from CI
+    # logs). The original chown-then-chmod form below is CI-proven to let
+    # --initialize succeed every time; the chmod's own exit status was
+    # never checked, so if it is silently denied the directory is left
+    # world-readable rather than restricted to snap_daemon -- a latent
+    # hardening gap, not an install failure. See pxc-ci-fix-report.md for
+    # detail. Follow the logs: keep the working shape here.
+    mkdir $SNAP_COMMON/data
     chown snap_daemon:root $SNAP_COMMON/data
 
     # Initialize data directory
@@ -51,6 +67,9 @@ init_snap_common() {
         echo "Error: MySQL was unable to initialize the data directory at $SNAP_COMMON/data" >&2
         exit 1
     fi
+
+    # Remove "group" and "other" permission access from data directory
+    chmod go-rwx $SNAP_COMMON/data
 }
 
 enable_auth_socket() {
