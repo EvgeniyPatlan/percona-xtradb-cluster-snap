@@ -37,7 +37,13 @@ execute: |
   test -x /snap/percona-xtradb-cluster/current/usr/bin/wsrep_sst_xtrabackup-v2
 
   echo "Test TCP connection (exercises server-side NSS resolution)"
-  percona-xtradb-cluster.mysql -u root -h 127.0.0.1 --protocol=TCP --execute="SELECT 1;"
+  # root@localhost is auth_socket-only (see the install hook), so a TCP login
+  # must be denied, not silently accepted. Reaching mysqld and getting back a
+  # clean authentication decision still proves TCP listening plus
+  # server-side NSS resolution work end-to-end (see percona-server-mysql-snap's
+  # smoke task for the same fix).
+  TCP_OUTPUT=$(percona-xtradb-cluster.mysql -u root -h 127.0.0.1 --protocol=TCP --execute="SELECT 1;" 2>&1) || :
+  echo "${TCP_OUTPUT}" | grep -q "ERROR 1698 (28000): Access denied for user 'root'@'localhost'"
 
   echo "Test mysqladmin"
   # mysqladmin returns 1 when called with `--help`, 127 if not found
