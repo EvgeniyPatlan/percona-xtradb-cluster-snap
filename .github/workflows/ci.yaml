@@ -8,6 +8,10 @@ concurrency:
 
 on:
   pull_request:
+  push:
+    branches:
+      - '*/edge'
+  workflow_dispatch:
 
 jobs:
   lint:
@@ -63,3 +67,37 @@ jobs:
         run: |
           SNAP_FILENAME=$(ls -- *.snap)
           sudo --user "$USER" --preserve-env=CRAFT_ARTIFACT -- env -- CRAFT_ARTIFACT="$(pwd)/$SNAP_FILENAME" "$HOME/go/bin/spread" -v
+
+  artifact:
+    name: Upload snap artifact
+    runs-on: ubuntu-24.04
+    permissions: {}
+    needs:
+      - build
+      - test
+    steps:
+      - name: Download snap package(s)
+        uses: actions/download-artifact@v8
+        with:
+          pattern: ${{ needs.build.outputs.artifact-prefix }}-*
+          merge-multiple: true
+      - name: Upload downloadable snap packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: snap-packages
+          path: "*.snap"
+          retention-days: 30
+          if-no-files-found: error
+      - name: Add install instructions to the run summary
+        run: |
+          {
+            echo "## Built snap packages"
+            echo
+            echo "Download the \`snap-packages\` artifact from this run, unzip it, then install manually:"
+            echo
+            echo '```'
+            for f in *.snap; do
+              echo "sudo snap install ./$f --dangerous --jailmode"
+            done
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
