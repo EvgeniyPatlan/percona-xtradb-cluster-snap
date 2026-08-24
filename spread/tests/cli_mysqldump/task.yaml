@@ -35,7 +35,29 @@ execute: |
   # test is deliberately dump-content-only rather than pretending to cover
   # restore. --set-gtid-purged=OFF keeps the dump free of a GTID_PURGED
   # statement that has no purpose in a dump that is never restored.
-  ${CMD_DUMP} --set-gtid-purged=OFF --databases test_db >test_db.sql
+  #
+  # Route the confined app's stdout through `cat` before the file
+  # redirect rather than redirecting it directly. CI-proven (this task,
+  # runs 32787365109/32788700771, both arches): a direct
+  # `mysqldump ... >test_db.sql` silently produces a 0-byte file --
+  # exit 0, no stderr, no error of any kind -- while the exact same
+  # command against the exact same live cluster produces a correct,
+  # non-empty dump when run unconfined (direct-exec repro, outside
+  # snapd). The sibling suites in mysql-snap, percona-server-mysql-snap,
+  # and percona-distribution-mysql-ps-snap all already pipe their
+  # confined mysqldump's stdout through `cat` rather than redirecting it
+  # directly, and an independent, parallel investigation in the sibling
+  # percona-distribution-mysql-pxc-snap repo hit the identical symptom
+  # and confirmed the identical `| cat` fix (commit 4b2e1d2). Most likely
+  # mechanism: mysqldump's own AppArmor/mount-namespace confinement
+  # silently fails to write to the pre-opened regular-file fd inherited
+  # from the redirect; a pipe into an unconfined `cat` sidesteps that
+  # entirely, since `cat` (not part of this snap) does the real file
+  # write. Not chased to the exact kernel-level mechanism -- that needs a
+  # live confined-node strace -- but the workaround is CI-provable and
+  # matches the already-proven convention used everywhere else in this
+  # family of snaps.
+  ${CMD_DUMP} --set-gtid-purged=OFF --databases test_db | cat >test_db.sql
 
   echo "Verify dump content"
   grep -q "CREATE TABLE" test_db.sql
