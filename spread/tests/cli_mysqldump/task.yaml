@@ -19,7 +19,16 @@ execute: |
   ${CMD} -e "INSERT INTO test_db.test_table (id, name) VALUES (1, 'test_name');"
 
   echo "Dump test db"
-  ${CMD_DUMP} --databases test_db >test_db.sql
+  # Restoring below targets the same live server, whose binary logs still
+  # hold every GTID this task just generated (none purged). A dump that
+  # embeds SET @@GLOBAL.GTID_PURGED would collide with that GTID_EXECUTED
+  # set (ERROR 3546) on restore, aborting the whole batch on its first
+  # statement (mysql stops on error by default) -- which is why the restore
+  # looked like a silent no-op and the later SELECT saw "Unknown database".
+  # This is a plain CLI round-trip check, not a GTID-preservation test, so
+  # drop the GTID_PURGED statement entirely (see percona-server-mysql-snap's
+  # cli_mysqldump task for the same fix).
+  ${CMD_DUMP} --set-gtid-purged=OFF --databases test_db >test_db.sql
 
   echo "Drop test db"
   ${CMD} -e "DROP DATABASE test_db;"
