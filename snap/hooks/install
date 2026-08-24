@@ -28,8 +28,15 @@ EOF
 }
 
 init_snap_common() {
-    # Create directory for storing data and set permissions
-    mkdir $SNAP_COMMON/data
+    # Create directory for storing data and set permissions.
+    #
+    # Under strict/jailmode confinement an install-hook path tolerates
+    # exactly ONE post-creation mutating op (chown OR chmod); a second one
+    # on the same path is denied (see percona-valkey-snap and
+    # percona-server-mysql-snap install hooks for the same fix). Fold the
+    # "remove group/other access" mode into mkdir -m so chown stays the
+    # only post-creation touch on this path.
+    mkdir -m 0700 $SNAP_COMMON/data
     chown snap_daemon:root $SNAP_COMMON/data
 
     # Initialize data directory
@@ -44,9 +51,6 @@ init_snap_common() {
         echo "Error: MySQL was unable to initialize the data directory at $SNAP_COMMON/data" >&2
         exit 1
     fi
-
-    # Remove "group" and "other" permission access from data directory
-    chmod go-rwx $SNAP_COMMON/data
 }
 
 enable_auth_socket() {
