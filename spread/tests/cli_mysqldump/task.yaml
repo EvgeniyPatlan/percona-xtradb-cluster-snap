@@ -36,6 +36,14 @@ execute: |
   # cli_mysqldump task for the same fix).
   ${CMD_DUMP} --set-gtid-purged=OFF --databases test_db >test_db.sql
 
+  # Diagnostic: the restore below has twice applied only part of the dump
+  # (or none of it) while mysqldump itself reported no error and exited 0.
+  # Surface exactly what landed in the file before proceeding.
+  echo "Dump file size: $(wc -c <test_db.sql) bytes, $(wc -l <test_db.sql) lines"
+  echo "----- dump file content -----"
+  cat test_db.sql
+  echo "----- end dump file content -----"
+
   echo "Drop test db"
   ${CMD} -e "DROP DATABASE test_db;"
 
