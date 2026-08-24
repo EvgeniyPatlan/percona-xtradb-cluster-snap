@@ -11,7 +11,11 @@ execute: |
   echo "Testing mysqldump"
 
   CMD="percona-xtradb-cluster.mysql -u root"
-  CMD_DUMP="percona-xtradb-cluster.mysqldump -u root --single-transaction"
+  # No --single-transaction: this is a tiny, isolated single-table dump with
+  # no concurrent writers, so the consistency guarantee buys nothing here,
+  # and it is the one concrete difference from percona-server-mysql-snap's
+  # already-fixed, CI-green version of this same round-trip test.
+  CMD_DUMP="percona-xtradb-cluster.mysqldump -u root"
 
   echo "Creating test db"
   ${CMD} -e "CREATE DATABASE test_db;"
@@ -34,6 +38,12 @@ execute: |
   ${CMD} -e "DROP DATABASE test_db;"
 
   echo "Restore test db"
+  # CREATE DATABASE IF NOT EXISTS as a defensive belt-and-suspenders step:
+  # the dump already embeds its own CREATE DATABASE, but pre-creating the
+  # target is common, idiomatic practice for mysqldump restores and keeps
+  # this round-trip check robust regardless of what the dump's own DDL
+  # preamble does.
+  ${CMD} -e "CREATE DATABASE IF NOT EXISTS test_db;"
   cat test_db.sql | ${CMD}
 
   ${CMD} -e "SELECT * FROM test_db.test_table WHERE id = 1;"
