@@ -11,11 +11,13 @@ execute: |
   echo "Testing mysqldump"
 
   CMD="percona-xtradb-cluster.mysql -u root"
-  # No --single-transaction: this is a tiny, isolated single-table dump with
-  # no concurrent writers, so the consistency guarantee buys nothing here,
-  # and it is the one concrete difference from percona-server-mysql-snap's
-  # already-fixed, CI-green version of this same round-trip test.
-  CMD_DUMP="percona-xtradb-cluster.mysqldump -u root"
+  # --single-transaction is required here, not optional: PXC's default
+  # pxc_strict_mode=ENFORCING rejects mysqldump's LOCK TABLES fallback
+  # outright (CI-proven: "mysqldump: Got error: 1105: Percona-XtraDB-Cluster
+  # prohibits use of LOCK TABLE/FLUSH TABLE <table> WITH READ LOCK/FOR
+  # EXPORT with pxc_strict_mode = ENFORCING when using LOCK TABLES" when
+  # this flag was dropped). Keep it.
+  CMD_DUMP="percona-xtradb-cluster.mysqldump -u root --single-transaction"
 
   echo "Creating test db"
   ${CMD} -e "CREATE DATABASE test_db;"
