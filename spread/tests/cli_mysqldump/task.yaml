@@ -46,7 +46,18 @@ execute: |
   # this round-trip check robust regardless of what the dump's own DDL
   # preamble does.
   ${CMD} -e "CREATE DATABASE IF NOT EXISTS test_db;"
-  cat test_db.sql | ${CMD}
+  # Capture output/exit status explicitly instead of a bare `cat file |
+  # ${CMD}`: piped restores in this suite have twice failed silently (no
+  # visible ERROR line in captured CI output) while leaving the schema
+  # only partially applied ("Unknown database", now "Table ... doesn't
+  # exist"), so surface whatever the client actually says this time.
+  set +e
+  RESTORE_OUTPUT=$(${CMD} <test_db.sql 2>&1)
+  RESTORE_RC=$?
+  set -e
+  echo "Restore output: ${RESTORE_OUTPUT}"
+  echo "Restore exit code: ${RESTORE_RC}"
+  [ "${RESTORE_RC}" -eq 0 ]
 
   ${CMD} -e "SELECT * FROM test_db.test_table WHERE id = 1;"
 
