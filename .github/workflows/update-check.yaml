@@ -1,0 +1,179 @@
+# Copyright 2025 Canonical Ltd.
+# See LICENSE file for licensing details.
+name: Update check
+
+on:
+  schedule:
+    - cron: '37 5 * * 1'
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: Run for a single branch instead of all */edge branches
+        required: false
+        type: string
+        default: ''
+
+permissions: {}
+
+jobs:
+  update-check:
+    name: Check upstream pins and open bump PRs
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      INPUT_BRANCH: ${{ inputs.branch }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          # This job commits and pushes bump branches with plain git (and
+          # uses `gh` for PRs), so, unlike the read-only jobs in ci.yaml, the
+          # checkout credential must be persisted for those pushes to work.
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Discover target branches
+        run: |
+          set -euo pipefail
+          if [ -n "${INPUT_BRANCH}" ]; then
+            printf '%s\n' "${INPUT_BRANCH}" > "${RUNNER_TEMP}/branches.txt"
+          else
+            # Right after checkout, non-default branches exist only under
+            # refs/remotes/origin/. Create a local tracking branch for each
+            # */edge branch so discovery (and every `git switch` below) can
+            # work off refs/heads, like a normal local checkout would.
+            for ref in $(git for-each-ref --format='%(refname:strip=3)' 'refs/remotes/origin/*/edge'); do
+              git branch --track "${ref}" "origin/${ref}" >/dev/null 2>&1 || true
+            done
+            git for-each-ref --format='%(refname:strip=2)' 'refs/heads/*/edge' > "${RUNNER_TEMP}/branches.txt"
+          fi
+          echo "Branches to process:"
+          cat "${RUNNER_TEMP}/branches.txt"
+
+      - name: Bump pins and open PRs, per branch
+        run: |
+          set -u
+          set -o pipefail
+
+          # Processes one track/edge branch end to end: switch to it, run
+          # the bump script, and if snap/snapcraft.yaml changed, push a
+          # bump/<track>-<version> branch and open (or reuse) a PR for it.
+          # Returns 1 on any real failure for this branch; the caller
+          # records that and moves on to the next branch rather than
+          # aborting the whole job.
+          process_branch() {
+            local branch="$1"
+            local track safe_track safe_version newversion bumpbranch open_count
+
+            git switch "${branch}" || {
+              echo "::error::could not switch to branch ${branch}"
+              return 1
+            }
+
+            if ! ./scripts/bump-version.sh >"${RUNNER_TEMP}/bump-output.txt" 2>"${RUNNER_TEMP}/bump-error.txt"; then
+              echo "::error::bump-version.sh failed for ${branch}"
+              cat "${RUNNER_TEMP}/bump-error.txt"
+              git checkout -- snap/snapcraft.yaml 2>/dev/null || true
+              return 1
+            fi
+            cat "${RUNNER_TEMP}/bump-output.txt"
+
+            if git diff --quiet -- snap/snapcraft.yaml; then
+              echo "${branch}: already up to date"
+              echo "| ${branch} | up to date |" >>"${GITHUB_STEP_SUMMARY}"
+              return 0
+            fi
+
+            newversion=$(python3 -c "import yaml; print(yaml.safe_load(open('snap/snapcraft.yaml'))['version'])") || {
+              echo "::error::could not read the new version from snap/snapcraft.yaml for ${branch}"
+              git checkout -- snap/snapcraft.yaml
+              return 1
+            }
+            track="${branch%/edge}"
+            safe_track=$(printf '%s' "${track}" | tr '/:' '--')
+            safe_version=$(printf '%s' "${newversion}" | tr '/:' '--')
+            bumpbranch="bump/${safe_track}-${safe_version}"
+
+            if git ls-remote --exit-code --heads origin "${bumpbranch}" >/dev/null 2>&1; then
+              echo "${branch}: ${bumpbranch} already exists remotely, skipping idempotently"
+              echo "| ${branch} | skipped — \`${bumpbranch}\` already exists |" >>"${GITHUB_STEP_SUMMARY}"
+              git checkout -- snap/snapcraft.yaml
+              return 0
+            fi
+
+            git checkout -b "${bumpbranch}" || return 1
+            git add snap/snapcraft.yaml || return 1
+            git commit -m "chore: bump ${track} to ${newversion}" || return 1
+            git push -u origin "${bumpbranch}" || return 1
+
+            open_count=$(gh pr list --base "${branch}" --head "${bumpbranch}" --state open --json number --jq 'length') || {
+              echo "::error::gh pr list failed for ${bumpbranch}"
+              return 1
+            }
+
+            if [ "${open_count}" = "0" ]; then
+              {
+                echo "Automated pin bump for track \`${track}\`, checked against the upstream apt indexes declared in \`snap/snapcraft.yaml\`."
+                echo
+                echo '```'
+                cat "${RUNNER_TEMP}/bump-output.txt"
+                echo '```'
+                echo
+                echo "If CI does not start automatically on this PR, start it manually with:"
+                echo '```'
+                echo "gh workflow run ci.yaml --ref ${bumpbranch}"
+                echo '```'
+              } >"${RUNNER_TEMP}/pr-body.txt"
+              gh pr create \
+                --base "${branch}" \
+                --head "${bumpbranch}" \
+                --title "chore: bump ${track} to ${newversion}" \
+                --body-file "${RUNNER_TEMP}/pr-body.txt" || {
+                echo "::error::gh pr create failed for ${bumpbranch}"
+                return 1
+              }
+            else
+              echo "${branch}: an open PR for ${bumpbranch} already exists"
+            fi
+
+            # GITHUB_TOKEN may be blocked from triggering workflow runs; that
+            # is not a failure of this job, just start CI manually if so.
+            gh workflow run ci.yaml --ref "${bumpbranch}" ||
+              echo "::notice::could not auto-start CI — start it with: gh workflow run ci.yaml --ref ${bumpbranch}"
+
+            echo "| ${branch} | opened PR for \`${bumpbranch}\` -> \`${newversion}\` |" >>"${GITHUB_STEP_SUMMARY}"
+            return 0
+          }
+
+          {
+            echo "## Update check results"
+            echo
+            echo "| Branch | Result |"
+            echo "|---|---|"
+          } >>"${GITHUB_STEP_SUMMARY}"
+
+          failures=0
+          while IFS= read -r branch; do
+            [ -z "${branch}" ] && continue
+            echo "::group::${branch}"
+            if ! process_branch "${branch}"; then
+              echo "| ${branch} | FAILED — see job log |" >>"${GITHUB_STEP_SUMMARY}"
+              failures=$((failures + 1))
+            fi
+            echo "::endgroup::"
+          done <"${RUNNER_TEMP}/branches.txt"
+
+          if [ "${failures}" -gt 0 ]; then
+            echo "::error::${failures} branch(es) failed; see the job log and step summary above"
+            exit 1
+          fi
