@@ -1,6 +1,6 @@
 name: percona-xtradb-cluster
 base: core26
-version: '9.7.1-1'
+version: '9.7.2-2'
 summary: Percona XtraDB Cluster (Galera) in a snap.
 description: |
   Percona XtraDB Cluster is a high-availability MySQL clustering solution
@@ -125,9 +125,9 @@ parts:
   packages-deb:
     plugin: nil
     stage-packages:
-      - percona-xtradb-cluster-server=1:9.7.1-1-1.resolute
-      - percona-xtradb-cluster-client=1:9.7.1-1-1.resolute
-      - percona-xtradb-cluster-garbd=1:9.7.1-1-1.resolute
+      - percona-xtradb-cluster-server=1:9.7.2-2-1.resolute
+      - percona-xtradb-cluster-client=1:9.7.2-2-1.resolute
+      - percona-xtradb-cluster-garbd=1:9.7.2-2-1.resolute
       - util-linux
     prime:
       # Percona telemetry agent (pulled in as a hard dependency; not shipped)
